@@ -14,7 +14,7 @@ gps_data_log = []
 
 @app.route('/')
 def index():
-    return render_template('index.html')
+    return render_template('index_test.html')
 
 @app.route('/api/gps', methods=['POST'])
 def receive_gps():

@@ -1,59 +1,268 @@
-<!-- templates/index.html -->
 <!DOCTYPE html>
 <html>
 <head>
     <title>GPS Tracking Dashboard</title>
     <script src="https://cdn.socket.io/4.4.1/socket.io.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css" />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
     <style>
-        body { font-family: Arial, sans-serif; margin: 20px; }
-        .dashboard { display: flex; flex-wrap: wrap; }
-        .panel { margin: 10px; padding: 15px; border: 1px solid #ddd; border-radius: 5px; }
-        .log-panel { width: 100%; height: 300px; overflow-y: scroll; }
-        .chart-panel { width: calc(50% - 52px); height: 400px; }
-        table { width: 100%; border-collapse: collapse; }
-        th, td { padding: 8px; text-align: left; border-bottom: 1px solid #ddd; }
-        .controls { margin: 20px 0; }
-        #path-chart-container, #speed-chart-container { 
+        body { 
+            font-family: Arial, sans-serif; 
+            margin: 20px; 
+            background-color: #f5f5f5;
+        }
+        .dashboard { 
+            display: flex; 
+            flex-wrap: wrap; 
+            gap: 15px;
+        }
+        .panel { 
+            margin: 5px; 
+            padding: 15px; 
+            border: 1px solid #ddd; 
+            border-radius: 5px; 
+            background-color: white;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .header {
+            background-color: #2c3e50;
+            color: white;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .header h1 {
+            margin: 0;
+        }
+        .log-panel { 
+            width: 100%; 
+            height: 300px; 
+            overflow-y: scroll; 
+        }
+        .chart-panel { 
+            width: calc(50% - 52px); 
+            height: 400px; 
+        }
+        .map-panel {
+            width: calc(50% - 52px);
+            height: 400px;
+        }
+        #map {
+            height: 370px;
+            width: 100%;
+            border-radius: 4px;
+        }
+        table { 
+            width: 100%; 
+            border-collapse: collapse; 
+        }
+        th, td { 
+            padding: 8px; 
+            text-align: left; 
+            border-bottom: 1px solid #ddd; 
+        }
+        th {
+            background-color: #f2f2f2;
+        }
+        tr:hover {
+            background-color: #f9f9f9;
+        }
+        .controls { 
+            margin: 20px 0; 
+            padding: 15px;
+            background-color: white;
+            border-radius: 5px;
+            border: 1px solid #ddd;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        #path-chart-container, #speed-chart-container, #heading-chart-container, #accuracy-chart-container { 
             position: relative; 
             height: 350px;
             width: 100%;
         }
+        .stats-panel {
+            width: calc(50% - 52px);
+            display: flex;
+            flex-direction: column;
+        }
+        .stat-item {
+            padding: 10px;
+            margin-bottom: 10px;
+            background-color: #f9f9f9;
+            border-radius: 4px;
+            border-left: 4px solid #3498db;
+        }
+        .stat-label {
+            font-weight: bold;
+            color: #555;
+        }
+        .stat-value {
+            font-size: 1.2em;
+            margin-top: 5px;
+        }
+        .status-indicator {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 5px;
+        }
+        .status-active {
+            background-color: #2ecc71;
+        }
+        .status-inactive {
+            background-color: #e74c3c;
+        }
+        .connection-status {
+            display: flex;
+            align-items: center;
+            font-size: 0.9em;
+            color: white;
+        }
+        .btn {
+            background-color: #3498db;
+            color: white;
+            border: none;
+            padding: 8px 15px;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+        }
+        .btn:hover {
+            background-color: #2980b9;
+        }
+        .tabs {
+            display: flex;
+            border-bottom: 1px solid #ddd;
+            margin-bottom: 10px;
+        }
+        .tab {
+            padding: 10px 20px;
+            cursor: pointer;
+            border: 1px solid transparent;
+            border-bottom: none;
+            border-radius: 4px 4px 0 0;
+            margin-right: 5px;
+        }
+        .tab.active {
+            background-color: #f5f5f5;
+            border-color: #ddd;
+            margin-bottom: -1px;
+        }
+        .tab:hover:not(.active) {
+            background-color: #f0f0f0;
+        }
+        .tab-content {
+            display: none;
+        }
+        .tab-content.active {
+            display: block;
+        }
+        .chart-container {
+            height: 350px;
+            margin-bottom: 20px;
+        }
     </style>
 </head>
 <body>
-    <h1>GPS Tracking Simulation Dashboard</h1>
+    <div class="header">
+        <h1>GPS Tracking Simulation Dashboard</h1>
+        <div class="connection-status">
+            <span class="status-indicator status-inactive" id="connection-indicator"></span>
+            <span id="connection-text">Disconnected</span>
+        </div>
+    </div>
     
     <div class="controls">
         <label>
             <input type="checkbox" id="network-issues"> Simulate Network Issues
         </label>
+        <button id="clear-path" class="btn" style="margin-left: 20px;">Clear Path</button>
+        <button id="toggle-auto-center" class="btn" style="margin-left: 20px;">Auto-Center Map: ON</button>
     </div>
     
     <div class="dashboard">
-        <div class="panel">
-            <h2>Current Location</h2>
-            <div id="current-location">
-                Waiting for data...
+        <!-- Map Panel -->
+        <div class="panel map-panel">
+            <h2>Live GPS Map</h2>
+            <div id="map"></div>
+        </div>
+        
+        <!-- Current Location Stats -->
+        <div class="panel stats-panel">
+            <h2>Current Status</h2>
+            <div class="stat-item">
+                <div class="stat-label">Location</div>
+                <div class="stat-value" id="current-coords">Waiting for data...</div>
+            </div>
+            
+            <div class="stat-item">
+                <div class="stat-label">Speed</div>
+                <div class="stat-value" id="current-speed">-</div>
+            </div>
+            
+            <div class="stat-item">
+                <div class="stat-label">Heading</div>
+                <div class="stat-value" id="current-heading">-</div>
+            </div>
+            
+            <div class="stat-item">
+                <div class="stat-label">Accuracy</div>
+                <div class="stat-value" id="current-accuracy">-</div>
+            </div>
+            
+            <div class="stat-item">
+                <div class="stat-label">Device</div>
+                <div class="stat-value" id="device-id">-</div>
+            </div>
+            
+            <div class="stat-item">
+                <div class="stat-label">Last Update</div>
+                <div class="stat-value" id="last-update">-</div>
             </div>
         </div>
         
-        <!-- New panel for path visualization -->
-        <div class="panel chart-panel">
-            <h2>GPS Path Tracking</h2>
-            <div id="path-chart-container">
-                <canvas id="path-chart"></canvas>
+        <!-- Charts with Tabs -->
+        <div class="panel" style="width: 100%;">
+            <h2>GPS Analytics</h2>
+            
+            <div class="tabs">
+                <div class="tab active" data-tab="speed-tab">Speed</div>
+                <div class="tab" data-tab="path-tab">Path</div>
+                <div class="tab" data-tab="heading-tab">Heading</div>
+                <div class="tab" data-tab="accuracy-tab">Accuracy</div>
+            </div>
+            
+            <div class="tab-content active" id="speed-tab">
+                <div class="chart-container">
+                    <canvas id="speed-chart"></canvas>
+                </div>
+            </div>
+            
+            <div class="tab-content" id="path-tab">
+                <div class="chart-container">
+                    <canvas id="path-chart"></canvas>
+                </div>
+            </div>
+            
+            <div class="tab-content" id="heading-tab">
+                <div class="chart-container">
+                    <canvas id="heading-chart"></canvas>
+                </div>
+            </div>
+            
+            <div class="tab-content" id="accuracy-tab">
+                <div class="chart-container">
+                    <canvas id="accuracy-chart"></canvas>
+                </div>
             </div>
         </div>
         
-        <!-- New panel for speed tracking -->
-        <div class="panel chart-panel">
-            <h2>Speed Over Time</h2>
-            <div id="speed-chart-container">
-                <canvas id="speed-chart"></canvas>
-            </div>
-        </div>
-        
+        <!-- Data Log Panel -->
         <div class="panel log-panel">
             <h2>Recent GPS Data Log</h2>
             <table id="log-table">
@@ -63,6 +272,8 @@
                         <th>Latitude</th>
                         <th>Longitude</th>
                         <th>Speed</th>
+                        <th>Heading</th>
+                        <th>Accuracy</th>
                         <th>Device ID</th>
                     </tr>
                 </thead>
@@ -79,6 +290,22 @@
         
         // Handle network issues checkbox
         const networkIssuesCheckbox = document.getElementById('network-issues');
+        let autoCenter = true;
+        
+        // Initialize map
+        const map = L.map('map').setView([12.9356, 77.6145], 15);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+        }).addTo(map);
+        
+        // Create a polyline for the path and a marker for current position
+        const pathPoints = [];
+        const polyline = L.polyline(pathPoints, {color: 'blue', weight: 4}).addTo(map);
+        let currentMarker = null;
+        
+        // Connection status elements
+        const connectionIndicator = document.getElementById('connection-indicator');
+        const connectionText = document.getElementById('connection-text');
         
         // Initialize data arrays for charts
         const pathData = {
@@ -95,10 +322,35 @@
         const speedData = {
             labels: [],
             datasets: [{
-                label: 'Speed (km/h)',
+                label: 'Speed (m/s)',
                 backgroundColor: 'rgba(255, 99, 132, 0.2)',
                 borderColor: 'rgba(255, 99, 132, 1)',
-                borderWidth: 1,
+                borderWidth: 2,
+                tension: 0.3,
+                data: []
+            }]
+        };
+        
+        const headingData = {
+            labels: [],
+            datasets: [{
+                label: 'Heading (degrees)',
+                backgroundColor: 'rgba(54, 162, 235, 0.2)',
+                borderColor: 'rgba(54, 162, 235, 1)',
+                borderWidth: 2,
+                tension: 0.3,
+                data: []
+            }]
+        };
+        
+        const accuracyData = {
+            labels: [],
+            datasets: [{
+                label: 'Accuracy (meters)',
+                backgroundColor: 'rgba(255, 206, 86, 0.2)',
+                borderColor: 'rgba(255, 206, 86, 1)',
+                borderWidth: 2,
+                tension: 0.3,
                 data: []
             }]
         };
@@ -142,7 +394,58 @@
                         beginAtZero: true,
                         title: {
                             display: true,
-                            text: 'Speed (km/h)'
+                            text: 'Speed (m/s)'
+                        }
+                    },
+                    x: {
+                        title: {
+                            display: true,
+                            text: 'Time'
+                        }
+                    }
+                }
+            }
+        });
+        
+        const headingChartCtx = document.getElementById('heading-chart').getContext('2d');
+        const headingChart = new Chart(headingChartCtx, {
+            type: 'line',
+            data: headingData,
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    y: {
+                        min: 0,
+                        max: 360,
+                        title: {
+                            display: true,
+                            text: 'Heading (degrees)'
+                        }
+                    },
+                    x: {
+                        title: {
+                            display: true,
+                            text: 'Time'
+                        }
+                    }
+                }
+            }
+        });
+        
+        const accuracyChartCtx = document.getElementById('accuracy-chart').getContext('2d');
+        const accuracyChart = new Chart(accuracyChartCtx, {
+            type: 'line',
+            data: accuracyData,
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        title: {
+                            display: true,
+                            text: 'Accuracy (meters)'
                         }
                     },
                     x: {
@@ -158,8 +461,22 @@
         // Maximum number of data points to show in charts
         const MAX_CHART_POINTS = 50;
         
+        // Function to format timestamp for display
+        function formatTimestamp(timestamp) {
+            if (timestamp.includes('T')) {
+                // ISO format from the Python app
+                return new Date(timestamp).toLocaleTimeString();
+            } else {
+                // Already formatted timestamp
+                return timestamp.split(' ')[1]; // Extract only the time part
+            }
+        }
+        
         // Function to update charts with new data
         function updateCharts(data) {
+            // Format timestamp for display
+            const timeString = formatTimestamp(data.timestamp);
+            
             // Add data to path chart
             pathData.datasets[0].data.push({
                 x: data.longitude,
@@ -171,9 +488,6 @@
                 pathData.datasets[0].data.shift();
             }
             
-            // Format timestamp for display
-            const timeString = data.timestamp.split(' ')[1]; // Extract only the time part
-            
             // Add data to speed chart
             speedData.labels.push(timeString);
             speedData.datasets[0].data.push(data.speed);
@@ -184,35 +498,111 @@
                 speedData.datasets[0].data.shift();
             }
             
+            // Add data to heading chart
+            headingData.labels.push(timeString);
+            headingData.datasets[0].data.push(data.heading);
+            
+            // Keep only the last MAX_CHART_POINTS points
+            if (headingData.labels.length > MAX_CHART_POINTS) {
+                headingData.labels.shift();
+                headingData.datasets[0].data.shift();
+            }
+            
+            // Add data to accuracy chart
+            accuracyData.labels.push(timeString);
+            accuracyData.datasets[0].data.push(data.accuracy);
+            
+            // Keep only the last MAX_CHART_POINTS points
+            if (accuracyData.labels.length > MAX_CHART_POINTS) {
+                accuracyData.labels.shift();
+                accuracyData.datasets[0].data.shift();
+            }
+            
             // Update charts
             pathChart.update();
             speedChart.update();
+            headingChart.update();
+            accuracyChart.update();
+        }
+        
+        // Function to update map with new data
+        function updateMap(data) {
+            const latLng = [data.latitude, data.longitude];
+            
+            // Add to path and update polyline
+            pathPoints.push(latLng);
+            polyline.setLatLngs(pathPoints);
+            
+            // Create or update marker
+            if (currentMarker) {
+                currentMarker.setLatLng(latLng);
+            } else {
+                currentMarker = L.marker(latLng).addTo(map);
+                
+                // Add popup with info
+                currentMarker.bindPopup(`
+                    <b>Current Position</b><br>
+                    Lat: ${data.latitude.toFixed(6)}<br>
+                    Lng: ${data.longitude.toFixed(6)}<br>
+                    Speed: ${data.speed.toFixed(2)} m/s
+                `);
+            }
+            
+            // Auto-center map if enabled
+            if (autoCenter) {
+                map.panTo(latLng);
+            }
         }
         
         // Listen for new GPS data
         socket.on('new_gps_data', function(data) {
             // Update current location display
-            document.getElementById('current-location').innerHTML = `
-                <p>Latitude: ${data.latitude.toFixed(6)}</p>
-                <p>Longitude: ${data.longitude.toFixed(6)}</p>
-                <p>Speed: ${data.speed.toFixed(1)} km/h</p>
-                <p>Last Update: ${data.timestamp}</p>
+            document.getElementById('current-coords').innerHTML = `
+                Lat: ${data.latitude.toFixed(6)}, Lng: ${data.longitude.toFixed(6)}
             `;
+            document.getElementById('current-speed').textContent = `${data.speed.toFixed(2)} m/s`;
+            document.getElementById('current-heading').textContent = `${data.heading.toFixed(1)}°`;
+            document.getElementById('current-accuracy').textContent = `${data.accuracy.toFixed(2)} m`;
+            document.getElementById('device-id').textContent = data.device_id;
+            document.getElementById('last-update').textContent = formatTimestamp(data.timestamp);
             
             // Update charts
             updateCharts(data);
+            
+            // Update map
+            updateMap(data);
             
             // Add to log table
             const logBody = document.getElementById('log-body');
             const row = document.createElement('tr');
             row.innerHTML = `
-                <td>${data.timestamp}</td>
+                <td>${formatTimestamp(data.timestamp)}</td>
                 <td>${data.latitude.toFixed(6)}</td>
                 <td>${data.longitude.toFixed(6)}</td>
-                <td>${data.speed.toFixed(1)}</td>
+                <td>${data.speed.toFixed(2)}</td>
+                <td>${data.heading.toFixed(1)}°</td>
+                <td>${data.accuracy.toFixed(2)} m</td>
                 <td>${data.device_id}</td>
             `;
             logBody.prepend(row);
+            
+            // Keep only the last 100 rows
+            if (logBody.children.length > 100) {
+                logBody.removeChild(logBody.lastChild);
+            }
+        });
+        
+        // Socket connection status
+        socket.on('connect', () => {
+            connectionIndicator.classList.remove('status-inactive');
+            connectionIndicator.classList.add('status-active');
+            connectionText.textContent = 'Connected';
+        });
+        
+        socket.on('disconnect', () => {
+            connectionIndicator.classList.remove('status-active');
+            connectionIndicator.classList.add('status-inactive');
+            connectionText.textContent = 'Disconnected';
         });
         
         // Load initial history and populate charts
@@ -222,28 +612,95 @@
                 const logBody = document.getElementById('log-body');
                 logBody.innerHTML = '';
                 
-                // Process data in chronological order for charts
-                data.forEach(entry => {
-                    // Update charts with historical data
-                    updateCharts(entry);
+                if (data.length > 0) {
+                    // Process data in chronological order for charts
+                    data.forEach((entry, index) => {
+                        // Update charts with historical data
+                        updateCharts(entry);
+                        
+                        // Update map with historical path
+                        if (index === data.length - 1) {
+                            // For the last (most recent) point, also update the current marker
+                            updateMap(entry);
+                        } else {
+                            // For older points, just add to the path
+                            pathPoints.push([entry.latitude, entry.longitude]);
+                        }
+                        
+                        // Add to log table
+                        const row = document.createElement('tr');
+                        row.innerHTML = `
+                            <td>${formatTimestamp(entry.timestamp)}</td>
+                            <td>${entry.latitude.toFixed(6)}</td>
+                            <td>${entry.longitude.toFixed(6)}</td>
+                            <td>${entry.speed.toFixed(2)}</td>
+                            <td>${entry.heading.toFixed(1)}°</td>
+                            <td>${entry.accuracy.toFixed(2)} m</td>
+                            <td>${entry.device_id}</td>
+                        `;
+                        logBody.prepend(row);
+                    });
                     
-                    // Add to log table
-                    const row = document.createElement('tr');
-                    row.innerHTML = `
-                        <td>${entry.timestamp}</td>
-                        <td>${entry.latitude.toFixed(6)}</td>
-                        <td>${entry.longitude.toFixed(6)}</td>
-                        <td>${entry.speed.toFixed(1)}</td>
-                        <td>${entry.device_id}</td>
-                    `;
-                    logBody.prepend(row);
-                });
+                    // Update the polyline with all points
+                    polyline.setLatLngs(pathPoints);
+                    
+                    // Center map on the last point
+                    if (data.length > 0) {
+                        const lastPoint = data[data.length - 1];
+                        map.setView([lastPoint.latitude, lastPoint.longitude], 15);
+                    }
+                }
             });
             
         // Toggle network issues simulation
         networkIssuesCheckbox.addEventListener('change', function() {
-            // Add functionality here if needed
-            console.log("Network issues simulation: " + networkIssuesCheckbox.checked);
+            const simulateIssues = networkIssuesCheckbox.checked;
+            
+            fetch('/api/gps?simulate_issues=' + (simulateIssues ? 'true' : 'false'), {
+                method: 'OPTIONS'
+            }).catch(error => {
+                console.log("Error setting simulation mode:", error);
+            });
+            
+            console.log("Network issues simulation: " + simulateIssues);
+        });
+        
+        // Clear path button
+        document.getElementById('clear-path').addEventListener('click', function() {
+            pathPoints.length = 0;
+            polyline.setLatLngs(pathPoints);
+            
+            // Also clear path chart
+            pathData.datasets[0].data = [];
+            pathChart.update();
+        });
+        
+        // Toggle auto-center button
+        document.getElementById('toggle-auto-center').addEventListener('click', function() {
+            autoCenter = !autoCenter;
+            this.textContent = autoCenter ? 'Auto-Center Map: ON' : 'Auto-Center Map: OFF';
+        });
+        
+        // Tab switching
+        document.querySelectorAll('.tab').forEach(tab => {
+            tab.addEventListener('click', function() {
+                // Remove active class from all tabs
+                document.querySelectorAll('.tab').forEach(t => {
+                    t.classList.remove('active');
+                });
+                
+                // Add active class to clicked tab
+                this.classList.add('active');
+                
+                // Hide all tab content
+                document.querySelectorAll('.tab-content').forEach(content => {
+                    content.classList.remove('active');
+                });
+                
+                // Show corresponding tab content
+                const tabId = this.getAttribute('data-tab');
+                document.getElementById(tabId).classList.add('active');
+            });
         });
     </script>
 </body>
