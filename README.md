@@ -46,7 +46,7 @@ The system simulates real-world conditions including signal loss, GPS accuracy v
 
 1. Clone the repository:
    ```bash
-   git clone https://github.com/yourusername/gps-tracking-system.git
+   git clone https://github.com/TrogHuy/GPS.git
    cd gps-tracking-system
    ```
 
@@ -95,9 +95,9 @@ The dashboard provides several features:
 
 #### Dashboard Controls
 
-- **Simulate Network Issues** - Toggle network latency and packet loss
+- **Simulate Network Issues** - Turn on/off network latency and packet loss
 - **Clear Path** - Remove the current path history from the map
-- **Auto-Center Map** - Toggle automatic map centering on new positions
+- **Auto-Center Map** - Turn on/off automatic map centering on new positions
 
 ## Technical Details
 
